@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无课表生成工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        .container { max-width: 1000px; margin: 20px auto; padding: 20px; }
+        .info-box { border: 1px solid #ccc; padding: 15px; background: #f9f9f9; margin-bottom: 20px; border-radius: 4px; }
+        .info-box h3 { margin-bottom: 10px; color: #2196F3; }
+        .info-box ul { margin-left: 20px; color: #666; }
+        .info-box li { margin-bottom: 5px; }
+        .form-row { margin: 15px 0; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .form-row label { font-weight: bold; min-width: 80px; }
+        .form-row input[type="file"] { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .form-row input[type="number"] { width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        .table th { background: #007bff; color: white; padding: 10px; text-align: left; }
+        .table td { border: 1px solid #ddd; padding: 8px; }
+        .table tr:hover { background: #f5f5f5; }
+        .btn { background: #007bff; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; }
+        .btn:hover { background: #0056b3; }
+        .msg { padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .success { background: #E8F5E9; color: #2E7D32; }
+        .error { background: #FFEBEE; color: #C62828; }
+        
+        /* 聊天区域样式 */
+        .chat-area { margin-top: 30px; border: 1px solid #ccc; padding: 15px; border-radius: 4px; background: white; }
+        .chat-area h3 { margin-bottom: 15px; color: #333; }
+        .chat-history { height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #fafafa; border-radius: 4px; }
+        .chat-msg { margin: 8px 0; padding: 8px 12px; border-radius: 4px; max-width: 80%; line-height: 1.5; white-space: pre-wrap; }
+        .user-msg { background: #e3f2fd; color: #0D47A1; text-align: right; margin-left: auto; }
+        .bot-msg { background: #f5f5f5; color: #333; margin-right: auto; }
+        .chat-input-group { display: flex; gap: 10px; margin-top: 10px; }
+        .chat-input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body style="background: #f5f5f5;">
+    <div class="container">
+        <h1>📚 无课表生成工具</h1>
+        
+        <div class="form-row">
+            <label>选择Excel文件：</label>
+            <input type="file" id="fileInput" name="file" accept=".xlsx,.xls" required>
+            <span id="fileNameDisplay" style="color: #666;">{{ file_name }}</span>
+            
+            <label style="margin-left: 20px;">总周次：</label>
+            <input type="number" id="totalWeeks" name="total_weeks" value="{{ total_weeks }}" min="1" max="20" required>
+            
+            <button class="btn" onclick="submitForm()">生成无课表</button>
+        </div>
+        
+        <!-- 消息提示 -->
+        {% if msg %}
+            <div class="msg {{ 'success' if has_result else 'error' }}">{{ msg }}</div>
+        {% endif %}
+        
+        <!-- 空闲时间表 -->
+        {% if has_result and free_schedule %}
+        <div style="margin-top: 20px; background: white; padding: 20px; border-radius: 4px;">
+            <h2>空闲时间表</h2>
+            <p style="margin: 10px 0; color: #666;">共找到 {{ total_count }} 个空闲时间段（总周次：{{ total_weeks }}周）</p>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>星期</th>
+                        <th>节次</th>
+                        <th>空闲周次</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in free_schedule %}
+                    <tr>
+                        <td>{{ item.weekday }}</td>
+                        <td>{{ item.section }}节</td>
+                        <td style="color: #4caf50; font-weight: bold;">{{ item.free_desc }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        <!-- 聊天查询区域 -->
+        {% if has_result %}
+        <div class="chat-area">
+            <h3>💬 聊天查询空闲时间</h3>
+            <div class="chat-history" id="chatHistory">
+                <div class="chat-msg bot-msg">你好！可以查询某星期或某节次的空闲时间，比如"星期一有空吗""3-4节什么时候有空"~</div>
+            </div>
+            <div class="chat-input-group">
+                <input type="text" id="chatInput" class="chat-input" placeholder="输入查询（如"星期一有空吗"）" onkeypress="if(event.key==='Enter') sendChat()">
+                <button class="btn" onclick="sendChat()">发送</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // 表单提交逻辑
+        function submitForm() {
+            const fileInput = document.getElementById('fileInput');
+            const totalWeeks = document.getElementById('totalWeeks').value;
+            if (!fileInput.files[0]) { 
+                alert("请选择文件"); 
+                return; 
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('total_weeks', totalWeeks);
+            
+            // 显示加载状态
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '处理中...';
+            
+            fetch('/process_schedule', {
+                method: 'POST',
+                body: formData
+            }).then(res => {
+                if (res.ok) {
+                    return res.text();
+                } else {
+                    throw new Error('处理失败');
+                }
+            }).then(html => {
+                document.body.innerHTML = html;
+            }).catch(error => {
+                alert('处理失败：' + error.message);
+                btn.disabled = false;
+                btn.textContent = '生成无课表';
+            });
+        }
+
+        // 聊天逻辑
+        function sendChat() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            // 显示用户消息
+            const chatHistory = document.getElementById('chatHistory');
+            chatHistory.innerHTML += `<div class="chat-msg user-msg">${msg}</div>`;
+            input.value = '';
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            
+            // 发送请求
+            fetch('/chat_query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `message=${encodeURIComponent(msg)}`
+            }).then(res => res.json()).then(data => {
+                chatHistory.innerHTML += `<div class="chat-msg bot-msg">${data.bot_response}</div>`;
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }).catch(error => {
+                chatHistory.innerHTML += `<div class="chat-msg bot-msg">查询出错，请重试~</div>`;
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            });
+        }
+    </script>
+</body>
+</html>
