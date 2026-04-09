@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>无课表生成工具</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f5f7;
+      --fg: #111827;
+      --accent: #2563eb;
+      --accent-soft: rgba(37,99,235,0.08);
+      --border: #e5e7eb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #020617;
+        --fg: #e5e7eb;
+        --accent-soft: rgba(59,130,246,0.25);
+        --border: #1f2937;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #e0f2fe 0, transparent 55%),
+                  radial-gradient(circle at bottom right, #fee2e2 0, transparent 55%),
+                  var(--bg);
+      color: var(--fg);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 24px;
+    }
+    .shell {
+      width: 100%;
+      max-width: 980px;
+      margin: auto;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(18px);
+      border-radius: 18px;
+      border: 1px solid rgba(148,163,184,0.35);
+      box-shadow:
+        0 22px 45px rgba(15,23,42,0.12),
+        0 0 0 1px rgba(148,163,184,0.2);
+      overflow: hidden;
+    }
+    @media (prefers-color-scheme: dark) {
+      .shell {
+        background: rgba(15,23,42,0.9);
+      }
+    }
+    .shell-header {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(148,163,184,0.4);
+      background: linear-gradient(90deg, rgba(15,23,42,0.9), rgba(15,23,42,0.75));
+      color: #e5e7eb;
+      gap: 10px;
+    }
+    .traffic {
+      display: flex;
+      gap: 6px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(15,23,42,0.3);
+      background: #ef4444;
+    }
+    .dot:nth-child(2) { background: #facc15; }
+    .dot:nth-child(3) { background: #22c55e; }
+    .title {
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0.9;
+    }
+    .shell-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.7fr);
+    }
+    @media (max-width: 880px) {
+      body { padding: 12px; }
+      .shell-body {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    .pane {
+      padding: 20px 22px 22px;
+      border-right: 1px solid rgba(148,163,184,0.3);
+    }
+    .pane:last-child {
+      border-right: none;
+      border-left: 1px solid rgba(148,163,184,0.12);
+      background: radial-gradient(circle at top, rgba(37,99,235,0.16) 0, transparent 55%);
+    }
+    @media (max-width: 880px) {
+      .pane {
+        border-right: none;
+        border-bottom: 1px solid rgba(148,163,184,0.25);
+      }
+      .pane:last-child {
+        border-left: none;
+      }
+    }
+    h1 {
+      font-size: 22px;
+      margin: 0 0 6px;
+      letter-spacing: 0.03em;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 18px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .subtitle { color: #9ca3af; }
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      display: inline-block;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    input[type="file"],
+    input[type="number"] {
+      font-size: 13px;
+      padding: 8px 9px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.96);
+      color: inherit;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    @media (prefers-color-scheme: dark) {
+      input[type="file"],
+      input[type="number"] {
+        background: rgba(15,23,42,0.96);
+        border-color: #1f2937;
+      }
+    }
+    input[type="file"]:focus,
+    input[type="number"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(37,99,235,0.35);
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      height: auto;
+    }
+    .hint {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 7px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      color: #f9fafb;
+      box-shadow:
+        0 10px 22px rgba(37,99,235,0.38),
+        0 0 0 1px rgba(15,23,42,0.2);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+      box-shadow:
+        0 16px 28px rgba(37,99,235,0.48),
+        0 0 0 1px rgba(15,23,42,0.25);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow:
+        0 8px 18px rgba(15,23,42,0.5),
+        0 0 0 1px rgba(15,23,42,0.35);
+    }
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.08);
+      border: 1px solid rgba(148,163,184,0.6);
+      color: #4b5563;
+    }
+    @media (prefers-color-scheme: dark) {
+      .badge {
+        background: rgba(15,23,42,0.8);
+        color: #e5e7eb;
+        border-color: rgba(148,163,184,0.7);
+      }
+    }
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .result-title {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .result-meta {
+      font-size: 11px;
+      color: #9ca3af;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .msg {
+      margin-bottom: 10px;
+      padding: 6px 9px;
+      border-radius: 9px;
+      font-size: 12px;
+      border: 1px solid rgba(248,250,252,0.2);
+      background: rgba(15,23,42,0.75);
+      color: #e5e7eb;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(15,23,42,0.86);
+      color: #e5e7eb;
+    }
+    thead {
+      background: linear-gradient(90deg, rgba(15,23,42,0.95), rgba(37,99,235,0.6));
+    }
+    th, td {
+      padding: 7px 9px;
+      text-align: left;
+      border-bottom: 1px solid rgba(31,41,55,0.75);
+      white-space: nowrap;
+    }
+    tbody tr:nth-child(odd) {
+      background: rgba(15,23,42,0.65);
+    }
+    tbody tr:nth-child(even) {
+      background: rgba(15,23,42,0.82);
+    }
+    tbody tr:hover {
+      background: rgba(37,99,235,0.3);
+    }
+    .empty {
+      font-size: 13px;
+      color: #9ca3af;
+      padding-top: 10px;
+    }
+    .pill {
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(37,99,235,0.22);
+      border: 1px solid rgba(129,140,248,0.9);
+      font-size: 11px;
+    }
+    .footer {
+      margin-top: 18px;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="shell-header">
+      <div class="traffic">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="title">无课表生成工具 · FastAPI</div>
+    </div>
+    <div class="shell-body">
+      <div class="pane">
+        <h1>上传课表，一键生成无课表</h1>
+        <div class="subtitle">
+          支持教务处导出的 Excel 课表，自动识别单双周与多段周次，生成每周空闲时间段。
+        </div>
+        <form id="uploadForm" action="/process_schedule" method="post" enctype="multipart/form-data">
+          <div class="field">
+            <label for="file">课表文件（.xlsx）</label>
+            <input id="file" name="file" type="file" accept=".xlsx,.xls" required />
+            <div class="hint">建议使用教务系统导出的原始 Excel，不要自行合并或删除列。</div>
+          </div>
+          <div class="field">
+            <label for="total_weeks">总周数</label>
+            <input
+              id="total_weeks"
+              name="total_weeks"
+              type="number"
+              min="1"
+              max="30"
+              value="{{ total_weeks or 16 }}"
+            />
+            <div class="hint">一般为 16 或 18 周，如不确定可保持默认值。</div>
+          </div>
+          <div class="actions">
+            <button type="submit">
+              <span>生成无课表</span>
+            </button>
+            <button type="button" id="previewBtn">
+              <span>预览课表</span>
+            </button>
+            <span class="badge">不会上传到服务器，只在本机解析</span>
+          </div>
+          <div class="field" id="progressContainer" style="display:none;">
+            <label>上传进度</label>
+            <div style="height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
+              <div id="progressBar" style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
+            </div>
+            <div class="hint" id="progressText">0%</div>
+          </div>
+          <div
+            id="previewArea"
+            style="margin-top:8px; display:none; max-height:200px; overflow:auto; font-size:12px; border:1px solid var(--border); padding:8px; border-radius:8px;"
+          ></div>
+        </form>
+        <div class="footer">
+          若出现“读取失败”或“解析失败”，请检查表头格式是否为：前两行为说明，从第 3 行起为具体节次与星期列。
+        </div>
+      </div>
+      <div class="pane">
+        <div id="msgBox" class="msg" style="display: none;" data-initial-msg="{{ msg or '' }}"></div>
+        <div class="result-header">
+          <div class="result-title">
+            无课时间概览
+            {% if has_result %}
+              <span id="countPill" class="pill">共 {{ total_count }} 条</span>
+            {% else %}
+              <span id="countPill" class="pill" style="display:none;"></span>
+            {% endif %}
+          </div>
+          <div class="result-meta">
+            {% if file_name %}
+              <span id="fileNameSpan">文件：{{ file_name }}</span>
+            {% else %}
+              <span id="fileNameSpan" style="display:none;"></span>
+            {% endif %}
+            {% if has_result %}
+              <span id="weeksSpan">统计周数：{{ total_weeks }} 周</span>
+            {% else %}
+              <span id="weeksSpan" style="display:none;"></span>
+            {% endif %}
+          </div>
+        </div>
+        <table id="resultTable" {% if not (has_result and free_schedule) %}style="display:none;"{% endif %}>
+          <thead>
+            <tr>
+              <th style="width: 80px;">星期</th>
+              <th style="width: 80px;">节次</th>
+              <th>空闲周数</th>
+            </tr>
+          </thead>
+          <tbody id="resultTbody">
+            {% for item in free_schedule %}
+            <tr>
+              <td>{{ item.weekday }}</td>
+              <td>{{ item.section }}</td>
+              <td>{{ item.free_desc }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div id="emptyBox" class="empty" {% if has_result and free_schedule %}style="display:none;"{% endif %}>
+          {% if msg %}
+            当前无可展示结果，请检查提示信息或重新上传课表。
+          {% else %}
+            右侧将展示每周各时间段的空闲周次。请先在左侧上传课表并点击“生成无课表”。
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const form = document.getElementById("uploadForm");
+      const fileInput = document.getElementById("file");
+      const msgBox = document.getElementById("msgBox");
+      const emptyBox = document.getElementById("emptyBox");
+      const table = document.getElementById("resultTable");
+      const tbody = document.getElementById("resultTbody");
+      const countPill = document.getElementById("countPill");
+      const fileNameSpan = document.getElementById("fileNameSpan");
+      const weeksSpan = document.getElementById("weeksSpan");
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const previewBtn = document.getElementById("previewBtn");
+      const originalBtnText = submitBtn ? submitBtn.textContent : "";
+      const progressContainer = document.getElementById("progressContainer");
+      const progressBar = document.getElementById("progressBar");
+      const progressText = document.getElementById("progressText");
+      const previewArea = document.getElementById("previewArea");
+
+      function showMsg(text) {
+        msgBox.textContent = text || "";
+        msgBox.style.display = text ? "block" : "none";
+      }
+
+      function setLoading(loading) {
+        if (!submitBtn) return;
+        submitBtn.disabled = loading;
+        if (previewBtn) previewBtn.disabled = loading;
+        submitBtn.style.opacity = loading ? "0.85" : "1";
+        submitBtn.textContent = loading ? "解析中..." : originalBtnText;
+      }
+
+      function resetProgress() {
+        progressBar.style.width = "0%";
+        progressText.textContent = "0%";
+        progressContainer.style.display = "none";
+      }
+
+      function renderResult(payload) {
+        const list = Array.isArray(payload.data) ? payload.data : [];
+        tbody.innerHTML = "";
+
+        for (const item of list) {
+          const tr = document.createElement("tr");
+          const td1 = document.createElement("td");
+          const td2 = document.createElement("td");
+          const td3 = document.createElement("td");
+          td1.textContent = item.weekday || "";
+          td2.textContent = item.section || "";
+          td3.textContent = item.free_desc || "";
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tr.appendChild(td3);
+          tbody.appendChild(tr);
+        }
+
+        if (list.length > 0) {
+          emptyBox.style.display = "none";
+          table.style.display = "table";
+        } else {
+          table.style.display = "none";
+          emptyBox.style.display = "block";
+        }
+
+        const count = typeof payload.total_count === "number" ? payload.total_count : list.length;
+        countPill.textContent = "共 " + count + " 条";
+        countPill.style.display = "inline-block";
+
+        fileNameSpan.textContent = "文件：" + (payload.file_name || "");
+        fileNameSpan.style.display = payload.file_name ? "inline" : "none";
+
+        weeksSpan.textContent = "统计周数：" + (payload.total_weeks || "") + " 周";
+        weeksSpan.style.display = payload.total_weeks ? "inline" : "none";
+      }
+
+      const initialMsg = msgBox.getAttribute("data-initial-msg") || "";
+      if (initialMsg) {
+        showMsg(initialMsg);
+      }
+
+      previewBtn.addEventListener("click", async function () {
+        const f = fileInput.files && fileInput.files[0];
+        if (!f) {
+          showMsg("请先选择 Excel 文件。");
+          return;
+        }
+
+        showMsg("");
+        previewArea.style.display = "none";
+
+        try {
+          const fd = new FormData();
+          fd.append("file", f);
+          const resp = await fetch("/api/preview_schedule", {
+            method: "POST",
+            body: fd,
+            headers: {
+              "accept": "application/json",
+              "x-requested-with": "XMLHttpRequest"
+            }
+          });
+          const payload = await resp.json();
+          if (!payload || payload.code !== 200) {
+            showMsg((payload && payload.msg) ? payload.msg : "预览失败，请稍后重试。");
+            return;
+          }
+
+          previewArea.innerHTML = "<div>课表前10行预览：</div><pre style='white-space:pre-wrap;margin:6px 0 0;'>" +
+            JSON.stringify(payload.data, null, 2) +
+            "</pre>";
+          previewArea.style.display = "block";
+        } catch (err) {
+          showMsg("预览请求失败：" + (err && err.message ? err.message : String(err)));
+        }
+      });
+
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const f = fileInput.files && fileInput.files[0];
+        if (!f) {
+          showMsg("请选择要上传的 Excel 文件。");
+          return;
+        }
+
+        showMsg("");
+        setLoading(true);
+        resetProgress();
+
+        try {
+          const fd = new FormData(form);
+          const payload = await new Promise(function (resolve, reject) {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/process_schedule");
+            xhr.setRequestHeader("accept", "application/json");
+            xhr.setRequestHeader("x-requested-with", "XMLHttpRequest");
+
+            xhr.upload.addEventListener("progress", function (event) {
+              if (!event.lengthComputable) return;
+              const percent = Math.round((event.loaded / event.total) * 100);
+              progressContainer.style.display = "block";
+              progressBar.style.width = percent + "%";
+              progressText.textContent = percent + "%";
+            });
+
+            xhr.onload = function () {
+              try {
+                resolve(JSON.parse(xhr.responseText || "{}"));
+              } catch (parseErr) {
+                reject(new Error("解析响应失败：" + parseErr.message));
+              }
+            };
+
+            xhr.onerror = function () {
+              reject(new Error("网络请求失败，请检查连接"));
+            };
+
+            xhr.send(fd);
+          });
+
+          if (!payload || payload.code !== 200) {
+            showMsg((payload && payload.msg) ? payload.msg : "解析失败，请稍后重试。");
+            table.style.display = "none";
+            emptyBox.style.display = "block";
+            return;
+          }
+
+          showMsg("解析成功！");
+          renderResult(payload);
+        } catch (err) {
+          showMsg("请求失败：" + (err && err.message ? err.message : String(err)));
+          table.style.display = "none";
+          emptyBox.style.display = "block";
+        } finally {
+          resetProgress();
+          setLoading(false);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
