@@ -135,3 +135,7 @@ python test_model.py
 ```
 
 覆盖全部周次格式识别、连续周合并与空闲时间计算，也可用 pytest 运行。
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。
