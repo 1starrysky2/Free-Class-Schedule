@@ -12,6 +12,7 @@
       --accent: #2563eb;
       --accent-soft: rgba(37,99,235,0.08);
       --border: #e5e7eb;
+      --muted: #6b7280;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -19,6 +20,7 @@
         --fg: #e5e7eb;
         --accent-soft: rgba(59,130,246,0.25);
         --border: #1f2937;
+        --muted: #9ca3af;
       }
     }
     * { box-sizing: border-box; }
@@ -115,11 +117,8 @@
     }
     .subtitle {
       font-size: 13px;
-      color: #6b7280;
+      color: var(--muted);
       margin-bottom: 18px;
-    }
-    @media (prefers-color-scheme: dark) {
-      .subtitle { color: #9ca3af; }
     }
     form {
       display: flex;
@@ -166,7 +165,7 @@
     }
     .hint {
       font-size: 12px;
-      color: #9ca3af;
+      color: var(--muted);
     }
     .actions {
       margin-top: 12px;
@@ -236,7 +235,7 @@
     }
     .result-meta {
       font-size: 11px;
-      color: #9ca3af;
+      color: var(--muted);
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
@@ -280,7 +279,7 @@
     }
     .empty {
       font-size: 13px;
-      color: #9ca3af;
+      color: var(--muted);
       padding-top: 10px;
     }
     .pill {
@@ -293,7 +292,7 @@
     .footer {
       margin-top: 18px;
       font-size: 11px;
-      color: #9ca3af;
+      color: var(--muted);
     }
   </style>
 </head>
@@ -315,8 +314,8 @@
         </div>
         <form id="uploadForm" action="/process_schedule" method="post" enctype="multipart/form-data">
           <div class="field">
-            <label for="file">课表文件（.xlsx）</label>
-            <input id="file" name="file" type="file" accept=".xlsx,.xls" required />
+            <label for="file">课表文件（.xlsx / .xls / .xlsm）</label>
+            <input id="file" name="file" type="file" accept=".xlsx,.xls,.xlsm" required />
             <div class="hint">建议使用教务系统导出的原始 Excel，不要自行合并或删除列。</div>
           </div>
           <div class="field">
@@ -342,7 +341,7 @@
           </div>
           <div class="field" id="progressContainer" style="display:none;">
             <label>上传进度</label>
-            <div style="height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
+            <div id="progressTrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
               <div id="progressBar" style="width:0%; height:100%; background:var(--accent); transition:width 0.2s ease;"></div>
             </div>
             <div class="hint" id="progressText">0%</div>
@@ -357,7 +356,7 @@
         </div>
       </div>
       <div class="pane">
-        <div id="msgBox" class="msg" style="display: none;" data-initial-msg="{{ msg or '' }}"></div>
+        <div id="msgBox" class="msg" style="display: none;" aria-live="polite" data-initial-msg="{{ msg or '' }}"></div>
         <div class="result-header">
           <div class="result-title">
             无课时间概览
@@ -424,6 +423,7 @@
       const originalBtnText = submitBtn ? submitBtn.textContent : "";
       const progressContainer = document.getElementById("progressContainer");
       const progressBar = document.getElementById("progressBar");
+      const progressTrack = document.getElementById("progressTrack");
       const progressText = document.getElementById("progressText");
       const previewArea = document.getElementById("previewArea");
 
@@ -442,6 +442,7 @@
 
       function resetProgress() {
         progressBar.style.width = "0%";
+        progressTrack.setAttribute("aria-valuenow", "0");
         progressText.textContent = "0%";
         progressContainer.style.display = "none";
       }
@@ -515,9 +516,15 @@
             return;
           }
 
-          previewArea.innerHTML = "<div>课表前10行预览：</div><pre style='white-space:pre-wrap;margin:6px 0 0;'>" +
-            JSON.stringify(payload.data, null, 2) +
-            "</pre>";
+          previewArea.textContent = "";
+          const previewLabel = document.createElement("div");
+          previewLabel.textContent = "课表前10行预览：";
+          const previewPre = document.createElement("pre");
+          previewPre.style.whiteSpace = "pre-wrap";
+          previewPre.style.margin = "6px 0 0";
+          previewPre.textContent = JSON.stringify(payload.data, null, 2);
+          previewArea.appendChild(previewLabel);
+          previewArea.appendChild(previewPre);
           previewArea.style.display = "block";
         } catch (err) {
           showMsg("预览请求失败：" + (err && err.message ? err.message : String(err)));
@@ -541,7 +548,7 @@
           const fd = new FormData(form);
           const payload = await new Promise(function (resolve, reject) {
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", "/api/process_schedule");
+            xhr.open("POST", "/process_schedule");
             xhr.setRequestHeader("accept", "application/json");
             xhr.setRequestHeader("x-requested-with", "XMLHttpRequest");
 
@@ -550,6 +557,7 @@
               const percent = Math.round((event.loaded / event.total) * 100);
               progressContainer.style.display = "block";
               progressBar.style.width = percent + "%";
+              progressTrack.setAttribute("aria-valuenow", percent);
               progressText.textContent = percent + "%";
             });
 

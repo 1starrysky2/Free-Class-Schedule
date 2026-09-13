@@ -51,12 +51,8 @@ def _even_weeks(start: int, end: int) -> range:
 
 def _match_week_pattern(pattern: str, text: str, handler) -> None:
     """通用正则匹配处理器。"""
-    matches = re.findall(pattern, text)
-    for match in matches:
-        try:
-            handler(match)
-        except (ValueError, TypeError):
-            continue
+    for match in re.findall(pattern, text):
+        handler(match)
 
 def extract_class_weeks(course_text):
     """
@@ -120,7 +116,7 @@ def extract_class_weeks(course_text):
     _match_week_pattern(WEEK_PATTERNS["normal_single"], course_str, handle_normal_single)
     
     # 去重并排序返回
-    return sorted(list(class_weeks))
+    return sorted(class_weeks)
 
 def merge_consecutive_weeks(weeks):
     """将连续周数合并为"x-y"格式（如[1,2,3,5]→"1-3,5"）"""
@@ -190,22 +186,20 @@ def calculate_free_schedule(df, total_weeks=16):
                 course_text = df.iloc[row_idx, col_idx]
                 class_weeks = extract_class_weeks(course_text)
                 all_weeks = set(range(1, total_weeks + 1))
-                free_weeks = sorted(list(all_weeks - set(class_weeks)))
+                free_weeks = sorted(all_weeks - set(class_weeks))
 
                 if free_weeks:
                     free_desc = merge_consecutive_weeks(free_weeks)
                     free_schedule.append({"weekday": weekday, "section": section, "free_desc": free_desc})
 
             processed_sections.add(section)
-            if len(processed_sections) >= 6:
+            if len(processed_sections) >= len(SECTION_ORDER):
                 break
 
         free_schedule.sort(key=lambda x: (WEEKDAY_ORDER.index(x["weekday"]), SECTION_ORDER.index(x["section"])))
         return free_schedule
     except IndexError as exc:
         raise ValueError(f"课表列数不足，无法匹配星期列（需要至少9列）：{exc}") from exc
-    except KeyError as exc:
-        raise ValueError(f"节次映射错误，无效的节次编号：{exc}") from exc
     except Exception as exc:
         raise ValueError(
             "课表解析失败："
